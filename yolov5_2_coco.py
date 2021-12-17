@@ -17,6 +17,11 @@ def read_txt(txt_path):
     data = list(map(lambda x: x.rstrip('\n'), data))
     return data
 
+def read_all_images_paths(label_dir):
+    p = Path(label_dir)
+    labels = list(p.glob("*.txt"))
+    images = [x.parents[2] / "images" / x.parts[-2] / (x.stem+".jpg") for x in labels]
+    return images
 
 def mkdir(dir_path):
     Path(dir_path).mkdir(parents=True, exist_ok=True)
@@ -28,6 +33,8 @@ class YOLOV5ToCOCO(object):
         self.src = self.src_data.parent
         self.train_txt_path = self.src_data / 'train.txt'
         self.val_txt_path = self.src_data / 'val.txt'
+        self.train_label_dir = self.src_data / "labels" / "train"
+        self.val_label_dir = self.src_data / "labels" / "val"
 
         # 构建COCO格式目录
         self.dst = Path(self.src) / f"{Path(self.src_data).name}_COCO_format"
@@ -43,6 +50,11 @@ class YOLOV5ToCOCO(object):
         mkdir(self.dst / self.coco_train)
         mkdir(self.dst / self.coco_val)
         mkdir(self.dst / self.coco_annotation)
+
+        print(self.dst)
+        print(self.dst / self.coco_train)
+        print(self.dst / self.coco_val)
+        print(self.dst / self.coco_annotation)
 
         # 构建json内容结构
         self.type = 'instances'
@@ -75,16 +87,19 @@ class YOLOV5ToCOCO(object):
             })
 
     def generate(self):
-        self.train_files = read_txt(self.train_txt_path)
-        if Path(self.val_txt_path).exists():
-            self.valid_files = read_txt(self.val_txt_path)
+        # self.train_files = read_txt(self.train_txt_path)
+        # if Path(self.val_txt_path).exists():
+        #     self.valid_files = read_txt(self.val_txt_path)
+        self.train_files = read_all_images_paths(self.train_label_dir)
+        if Path(self.val_label_dir).exists():
+            self.valid_files = read_all_images_paths(self.val_label_dir)
 
         train_dest_dir = Path(self.dst) / self.coco_train
         self.gen_dataset(self.train_files, train_dest_dir,
                          self.coco_train_json)
 
         val_dest_dir = Path(self.dst) / self.coco_val
-        if Path(self.val_txt_path).exists():
+        if Path(self.val_label_dir).exists():
             self.gen_dataset(self.valid_files, val_dest_dir,
                              self.coco_val_json)
 
@@ -103,8 +118,8 @@ class YOLOV5ToCOCO(object):
             if not img_path.exists():
                 continue
 
-            label_path = str(img_path.parent.parent
-                             / 'labels' / f'{img_path.stem}.txt')
+            label_path = str(img_path.parents[2]
+                             / 'labels' / img_path.parts[-2] / f'{img_path.stem}.txt')
 
             imgsrc = cv2.imread(str(img_path))
             height, width = imgsrc.shape[:2]
@@ -130,8 +145,8 @@ class YOLOV5ToCOCO(object):
                                                 height, width)
                 if len(new_anno) > 0:
                     annotations.extend(new_anno)
-                else:
-                    raise ValueError(f'{label_path} is empty')
+                # else:
+                #     raise ValueError(f'{label_path} is empty')
             else:
                 raise FileExistsError(f'{label_path} not exists')
 
